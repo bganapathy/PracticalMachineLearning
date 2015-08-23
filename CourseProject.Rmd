@@ -1,0 +1,100 @@
+---
+title: "Coursera Machine Learning Project"
+author: "Bhavani Ganapathy"
+date: "Saturday, August 22, 2015"
+output: html_document
+---
+SETUP & PREPARING THE DATA FOR THIS PROJECT :
+```{r}
+# Setting the working directory to the local folder which we  will use to download the data and store the intermediate Rmd, md and  final html files.
+setwd("C:/Data")
+
+#Weblink to the training data to be downloaded for this project.
+trainurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+#Weblink to the testing data to be downloaded for this project.
+testurl <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+```
+This script first checks if the zip file already exists, if not it will download the file and unzip it.If it already exists it will reuse the existing file in the working directory.
+```{r}
+if (!file.exists('pml-training.csv')) {
+        download.file(trainurl, 'pml-training.csv')
+}
+if (!file.exists('pml-testing.csv')) {
+        download.file(testurl,'pml-testing.csv')
+}
+```
+Read the data to into a dataframe.
+```{r}
+train <- read.csv(file = "./pml-training.csv", header = TRUE)
+test <- read.csv(file = "./pml-testing.csv", header = TRUE)
+```
+Let's investigte the dimensions of the trianing and test dataset avaiable for this project.
+```{r}
+dim(train)
+dim(test)
+```
+Let's learn more about the manner in wich they performed their exercises. we can do this by  investigating the cross tabulation of the classes variable in the training dataset
+```{r}
+table(train$classe)
+```
+Installing all the libraries required for this project.
+```{r}
+library(caret)
+library(randomForest)
+```
+Now we set the seed and perform the cross validation with 80% of the data being assigned to the training set and 20% to the validation set, using the manner in which the exercise was performed(i.e, the class variable in the training dataset)to split the data.
+```{r}
+set.seed(123456)
+trainset <- createDataPartition(train$classe, p = 0.8, list = FALSE)
+Training <- train[trainset, ]
+Validation <- train[-trainset, ]
+```
+Now we start cleaning the partitioned traning data set derived during the cross validation process.
+Firstly, we remove the noninformative data in the training set, using the near zero predictor variable.
+```{r}
+nzvcol <- nearZeroVar(Training)
+Training <- Training[, -nzvcol]
+```
+Secondly, we remove the columns which has descriptive information like names, usernames, timestamp etc which doesn't add any value during prediction and can be a hinderance during model building, and values with null columns.
+```{r}
+count <- sapply(Training, function(x) {
+        sum(!(is.na(x) | x == ""))
+})
+nullcolumn <- names(count[count < 0.6 * length(Training$classe)])
+descriptivecolumn <- c("X", "user_name", "raw_timestamp_part_1", "raw_timestamp_part_2","cvtd_timestamp", "num_window")
+Toexclude <- c(descriptivecolumn, nullcolumn)
+Training <- Training[, !names(Training) %in% Toexclude]
+```
+With the clean training data set, now we start to build the model. We will use random forest algorithm for classification and regression. As only the subset of boot straping variables will be considered at each potential split, the variables considered will be widely spread and diverse,hence this will help reduce the out of sample error and  the accurracy is maintained as well. To over come the drawback of model building taking to much resources and time, we will restrict the number of trees to 10 in this case.
+```{r}
+rfModel <- randomForest(classe ~ ., data = Training, importance = TRUE, ntrees = 10)
+rfModel
+```
+We can observe that the out of bag error rate(i.e, OOB) is 0.36% in our model. This indicates our model is good. Observing this we can determine that the out of sample error rate could be slightly more than OOB which is acceptable.
+
+Now we will use the prediction model with the training data set.
+```{r}
+ptraining <- predict(rfModel, Training)
+print(confusionMatrix(ptraining, Training$classe))
+```
+We can observe with the confusion matrix, that the accuracy of the prediction model on the training data set is 99.52 % and hence the out of sample error is 0.48%. 
+As we predicted earlier it is slightly more than the OOB error, which is acceptable.
+
+Now we use the prediction model on the validation data set.
+```{r}
+pvalidation <- predict(rfModel, Validation)
+print(confusionMatrix(pvalidation, Validation$classe))
+```
+We can observe that the accuracy of the prediction model on the validation data set is 99.52% as well and hence the out of sample error for the validation data set is also 0.48%.
+
+Now let's use the prediction model on the test data set.
+```{r}
+ptest <- predict(rfModel, test)
+ptest
+```
+
+Above, you can see the prediction on the test data set.
+
+Thank you for reviewing this report.
+
+All the best on your data science endeavor.
